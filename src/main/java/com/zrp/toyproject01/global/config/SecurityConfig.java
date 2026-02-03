@@ -2,6 +2,7 @@ package com.zrp.toyproject01.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -49,6 +50,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/account/signup", "/api/account/login")
                 .permitAll()
                 .requestMatchers("/", "/login", "/signup", "/favicon.ico", "/error")
+                .permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/posts/**")
                 .permitAll()
                 // 그 외 모든 요청은 인증 필요
                 .anyRequest().authenticated()

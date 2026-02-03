@@ -1,42 +1,65 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html th:replace="~{layout :: layout(~{::title}, ~{::content}, ~{::scripts})}" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="UTF-8">
-    <title>Reserve-It Main</title>
+    <title>Reserve-It 홈</title>
 </head>
 <body>
-    <h1>Reserve-It 홈</h1>
-    
-    <div id="guest-zone">
-        <p>로그인이 필요합니다.</p>
-        <a href="/login">로그인</a> | <a href="/signup">회원가입</a>
+    <div th:fragment="content">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>📌 자유 게시판</h2>
+            <a href="/post/write" class="btn btn-primary member-menu" style="display: none;">✏️ 글쓰기</a>
+        </div>
+
+        <div id="post-list" class="row g-3">
+            <div class="col-12 text-center">로딩중...</div>
+        </div>
     </div>
 
-    <div id="member-zone" style="display:none;">
-        <p>반갑습니다, <span id="user-nickname"></span>님!</p>
-        <p>당신의 토큰: <span id="user-token" style="font-size:10px; color:gray;"></span></p>
-        <button onclick="logout()">로그아웃</button>
-    </div>
-
+    <th:block th:fragment="scripts">
     <script>
-        // 페이지 로드 시 토큰 확인
-        const token = localStorage.getItem('accessToken');
-        const nickname = localStorage.getItem('nickname');
+        // 페이지 로드 시 게시글 목록 불러오기
+        document.addEventListener("DOMContentLoaded", function() {
+            fetchPosts();
+        });
 
-        if (token) {
-            document.getElementById('guest-zone').style.display = 'none';
-            document.getElementById('member-zone').style.display = 'block';
-            document.getElementById('user-nickname').innerText = nickname;
-            document.getElementById('user-token').innerText = token.substring(0, 20) + "...";
-        }
+        function fetchPosts() {
+            fetch('/api/posts') // GET 요청은 토큰 필요 없음
+            .then(response => response.json())
+            .then(result => {
+                const listContainer = document.getElementById('post-list');
+                listContainer.innerHTML = ''; // 초기화
 
-        function logout() {
-            // 토큰 삭제 = 로그아웃
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('nickname');
-            alert("로그아웃 되었습니다.");
-            window.location.reload();
+                if (!result.data || result.data.length === 0) {
+                    listContainer.innerHTML = '<div class="col-12 text-center text-muted p-5">게시글이 없습니다. 첫 글을 작성해보세요!</div>';
+                    return;
+                }
+
+                result.data.forEach(post => {
+                    const date = new Date(post.updatedAt).toLocaleDateString();
+                    const html = `
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <a href="/post/${post.id}" class="text-decoration-none text-dark">${post.title}</a>
+                                    </h5>
+                                    <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.9rem;">
+                                        작성자: ${post.author} | 날짜: ${date}
+                                    </h6>
+                                    <p class="card-text text-truncate">${post.content}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.innerHTML += html;
+                });
+            })
+            .catch(err => {
+                console.error(err);
+                alert("게시글 목록을 불러오는데 실패했습니다.");
+            });
         }
     </script>
+    </th:block>
 </body>
 </html>

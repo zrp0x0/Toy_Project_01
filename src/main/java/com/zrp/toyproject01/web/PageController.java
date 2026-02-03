@@ -20,4 +20,9 @@ public class PageController {
     public String signup() {
         return "signup"; // signup.html
     }
+
+    @GetMapping("/post/write")
+    public String postWrite() {
+        return "post/write";
+    }
 }

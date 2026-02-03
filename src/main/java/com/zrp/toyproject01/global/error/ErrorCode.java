@@ -12,6 +12,11 @@ public enum ErrorCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "사용자를 찾을 수 없습니다."),
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "A002", "이미 가입된 이메일입니다."),
     INFO_NOT_TRUE(HttpStatus.BAD_REQUEST, "A003", "정보가 일치하지 않습니다."),
+    LOGIN_REQUIRED(HttpStatus.UNAUTHORIZED, "A004", "로그인이 필요한 서비스입니다."),
+
+    // Post
+    POST_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "해당 게시글을 찾을 수 없습니다."),
+    NO_PERMISSION(HttpStatus.FORBIDDEN, "P002", "수정/삭제 권한이 없습니다."),
 
     // Seat
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "좌석을 찾을 수 없습니다."),
