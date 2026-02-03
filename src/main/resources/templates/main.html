@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Reserve-It Main</title>
+</head>
+<body>
+    <h1>Reserve-It 홈</h1>
+    
+    <div id="guest-zone">
+        <p>로그인이 필요합니다.</p>
+        <a href="/login">로그인</a> | <a href="/signup">회원가입</a>
+    </div>
+
+    <div id="member-zone" style="display:none;">
+        <p>반갑습니다, <span id="user-nickname"></span>님!</p>
+        <p>당신의 토큰: <span id="user-token" style="font-size:10px; color:gray;"></span></p>
+        <button onclick="logout()">로그아웃</button>
+    </div>
+
+    <script>
+        // 페이지 로드 시 토큰 확인
+        const token = localStorage.getItem('accessToken');
+        const nickname = localStorage.getItem('nickname');
+
+        if (token) {
+            document.getElementById('guest-zone').style.display = 'none';
+            document.getElementById('member-zone').style.display = 'block';
+            document.getElementById('user-nickname').innerText = nickname;
+            document.getElementById('user-token').innerText = token.substring(0, 20) + "...";
+        }
+
+        function logout() {
+            // 토큰 삭제 = 로그아웃
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('nickname');
+            alert("로그아웃 되었습니다.");
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>로그인</title>
+</head>
+<body>
+    <h1>로그인</h1>
+    <div>
+        <label>이메일: <input type="email" id="email"></label><br>
+        <label>비밀번호: <input type="password" id="password"></label><br>
+        <button onclick="login()">로그인</button>
+    </div>
+
+    <script>
+        function login() {
+            const data = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            fetch('/api/account/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    // [핵심] 토큰을 로컬 스토리지에 저장
+                    localStorage.setItem('accessToken', result.data.token);
+                    localStorage.setItem('nickname', result.data.nickname);
+                    
+                    alert("로그인 성공! 환영합니다, " + result.data.nickname);
+                    window.location.href = "/";
+                } else {
+                    alert("로그인 실패: " + result.error.message);
+                }
+            })
+            .catch(err => alert("서버 오류 발생"));
+        }
+    </script>
+</body>
+</html>

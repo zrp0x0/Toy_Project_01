@@ -48,6 +48,8 @@ public class SecurityConfig {
                 // 회워 가입, 로그인은 인증 없이 접근 허용
                 .requestMatchers("/api/account/signup", "/api/account/login")
                 .permitAll()
+                .requestMatchers("/", "/login", "/signup", "/favicon.ico", "/error")
+                .permitAll()
                 // 그 외 모든 요청은 인증 필요
                 .anyRequest().authenticated()
             )

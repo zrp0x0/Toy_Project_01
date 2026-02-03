@@ -26,7 +26,7 @@ public class JwtFilter extends OncePerRequestFilter{
     protected void doFilterInternal(
         HttpServletRequest request, 
         HttpServletResponse response,
-        FilterChain FilterChain
+        FilterChain filterChain
     ) throws IOException, ServletException {
 
         // 1. 요청 헤더에서 토큰을 꺼내기
@@ -42,6 +42,9 @@ public class JwtFilter extends OncePerRequestFilter{
             // 이렇게 하면 이후 모든 로직에서 이 사람은 로그인한 사용자다라고 인식함
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
+
+        // 5. 다음 단계(다른 필터 혹은 Controller)로 넘어갑니다.
+        filterChain.doFilter(request, response);
     }
 
     // 요청에서 토큰 파싱하기 (공통 규약을 따름)

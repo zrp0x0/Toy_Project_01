@@ -20,11 +20,11 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SecurityException;
 
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 
 @Component
@@ -35,7 +35,7 @@ public class TokenProvider {
 
     // 1. 생성자: 설정 파일에서 비밀키를 가져와서 사용할 준비
     public TokenProvider(@Value("${jwt.secret}") String secretKey) {
-        byte[] keyBytes = Base64.getDecoder().decode(secretKey); // 비밀키를 디코딩
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey); // 비밀키를 디코딩
         this.key = Keys.hmacShaKeyFor(keyBytes);            // 자바의 Key 객체로 교환
         this.tokenValidityTime = 1000L * 60 * 10;      // 토크 유효 시간 10분
     }

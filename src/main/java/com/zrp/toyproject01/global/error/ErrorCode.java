@@ -10,7 +10,9 @@ public enum ErrorCode {
 
     // Account
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "A001", "사용자를 찾을 수 없습니다."),
-    
+    DUPLICATE_EMAIL(HttpStatus.CONFLICT, "A002", "이미 가입된 이메일입니다."),
+    INFO_NOT_TRUE(HttpStatus.BAD_REQUEST, "A003", "정보가 일치하지 않습니다."),
+
     // Seat
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "좌석을 찾을 수 없습니다."),
     SEAT_ALREADY_RESERVED(HttpStatus.CONFLICT, "S002", "이미 예약된 좌석입니다."),
