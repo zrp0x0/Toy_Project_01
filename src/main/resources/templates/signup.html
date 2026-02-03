@@ -5,21 +5,21 @@
 </head>
 <body>
     <div th:fragment="content">
-        <div class="row justify-content-center">
-            <div class="col-md-4">
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-5">
                 <div class="card p-4">
-                    <h3 class="text-center mb-4">회원가입</h3>
+                    <h3 class="text-center mb-4">📝 회원가입</h3>
                     <div class="mb-3">
                         <label for="email" class="form-label">이메일</label>
                         <input type="email" class="form-control" id="email" placeholder="name@example.com">
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">비밀번호 (8자 이상)</label>
-                        <input type="password" class="form-control" id="password">
-                    </div>
-                     <div class="mb-3">
                         <label for="nickname" class="form-label">닉네임</label>
-                        <input type="text" class="form-control" id="nickname">
+                        <input type="text" class="form-control" id="nickname" placeholder="별명">
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">비밀번호</label>
+                        <input type="password" class="form-control" id="password">
                     </div>
                     <button onclick="signup()" class="btn btn-success w-100 py-2">가입하기</button>
                 </div>
@@ -30,25 +30,24 @@
     <th:block th:fragment="scripts">
     <script>
         function signup() {
-            const data = {
-                email: document.getElementById('email').value,
-                password: document.getElementById('password').value,
-                nickname: document.getElementById('nickname').value
-            };
+            const email = document.getElementById('email').value;
+            const nickname = document.getElementById('nickname').value;
+            const password = document.getElementById('password').value;
 
             fetch('/api/account/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: JSON.stringify({ email, nickname, password })
             })
             .then(response => {
                 if (response.ok) {
-                    alert("가입 성공! 로그인 해주세요.");
+                    alert("가입이 완료되었습니다! 로그인 해주세요.");
                     window.location.href = "/login";
                 } else {
-                    response.json().then(result => alert("실패: " + result.error.message));
+                    response.json().then(res => alert("가입 실패: " + res.error.message));
                 }
-            });
+            })
+            .catch(err => alert("서버 오류가 발생했습니다."));
         }
     </script>
     </th:block>

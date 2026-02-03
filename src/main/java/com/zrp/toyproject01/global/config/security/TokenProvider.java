@@ -37,7 +37,7 @@ public class TokenProvider {
     public TokenProvider(@Value("${jwt.secret}") String secretKey) {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey); // 비밀키를 디코딩
         this.key = Keys.hmacShaKeyFor(keyBytes);            // 자바의 Key 객체로 교환
-        this.tokenValidityTime = 1000L * 60 * 10;      // 토크 유효 시간 10분
+        this.tokenValidityTime = 1000L * 60 * 1;      // 토크 유효 시간 1분
     }
 
     // 2. 토큰 생성 (로그인 성공 시 호출)
@@ -105,6 +105,30 @@ public class TokenProvider {
         ); // username / password / 권한들
 
         return new UsernamePasswordAuthenticationToken(principal, token, authorities);
+    }
+
+    // 리프레시 토큰 생성
+    public String createRefreshToken(String email) {
+        long now = (new Date()).getTime();
+        Date validity = new Date(now + (1000L * 60 * 60 * 24)); // 1일
+
+        return Jwts.builder()
+            .setSubject(email)
+            .setExpiration(validity)
+            .signWith(key, SignatureAlgorithm.HS512)
+            .compact();
+    }
+
+    // 토큰의 만료 시간을 꺼내는 메서드
+    public Long getExpiration(String token) {
+        Date expiration = Jwts.parserBuilder()
+            .setSigningKey(key)
+            .build()
+            .parseClaimsJws(token)
+            .getBody()
+            .getExpiration();
+
+        return expiration.getTime();
     }
 
 }

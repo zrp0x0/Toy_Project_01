@@ -1,52 +1,62 @@
 <!DOCTYPE html>
 <html th:replace="~{layout :: layout(~{::title}, ~{::content}, ~{::scripts})}" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>Reserve-It 홈</title>
+    <title>메인 페이지</title>
 </head>
 <body>
     <div th:fragment="content">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2>📌 자유 게시판</h2>
-            <a href="/post/write" class="btn btn-primary member-menu" style="display: none;">✏️ 글쓰기</a>
+        <div class="text-center py-5">
+            <h1>📢 자유 게시판</h1>
+            <p class="text-muted">자유롭게 이야기를 나누어 보세요.</p>
         </div>
 
-        <div id="post-list" class="row g-3">
-            <div class="col-12 text-center">로딩중...</div>
+        <div class="row g-4" id="post-list">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
         </div>
     </div>
 
     <th:block th:fragment="scripts">
     <script>
-        // 페이지 로드 시 게시글 목록 불러오기
         document.addEventListener("DOMContentLoaded", function() {
             fetchPosts();
         });
 
         function fetchPosts() {
-            fetch('/api/posts') // GET 요청은 토큰 필요 없음
-            .then(response => response.json())
+            // GET /api/posts 요청 (SecurityConfig에서 permitAll 되어 있음)
+            fetch('/api/posts')
+            .then(response => {
+                if (!response.ok) throw new Error("불러오기 실패");
+                return response.json();
+            })
             .then(result => {
                 const listContainer = document.getElementById('post-list');
-                listContainer.innerHTML = ''; // 초기화
+                listContainer.innerHTML = ''; // 로딩 스피너 제거
 
-                if (!result.data || result.data.length === 0) {
-                    listContainer.innerHTML = '<div class="col-12 text-center text-muted p-5">게시글이 없습니다. 첫 글을 작성해보세요!</div>';
+                const posts = result.data;
+                if (!posts || posts.length === 0) {
+                    listContainer.innerHTML = '<div class="col-12 text-center text-muted p-5">작성된 게시글이 없습니다.</div>';
                     return;
                 }
 
-                result.data.forEach(post => {
-                    const date = new Date(post.updatedAt).toLocaleDateString();
+                posts.forEach(post => {
+                    let dateStr = "날짜 없음";
+                    if(post.updatedAt) dateStr = new Date(post.updatedAt).toLocaleDateString();
+
                     const html = `
-                        <div class="col-12">
-                            <div class="card">
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100">
                                 <div class="card-body">
-                                    <h5 class="card-title">
-                                        <a href="/post/${post.id}" class="text-decoration-none text-dark">${post.title}</a>
+                                    <h5 class="card-title text-truncate">
+                                        <a href="/post/${post.id}" class="text-decoration-none text-dark stretched-link">${post.title}</a>
                                     </h5>
-                                    <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.9rem;">
-                                        작성자: ${post.author} | 날짜: ${date}
+                                    <h6 class="card-subtitle mb-2 text-muted small">
+                                        ${post.author} · ${dateStr}
                                     </h6>
-                                    <p class="card-text text-truncate">${post.content}</p>
+                                    <p class="card-text text-truncate" style="max-width: 100%;">${post.content}</p>
                                 </div>
                             </div>
                         </div>
@@ -54,10 +64,7 @@
                     listContainer.innerHTML += html;
                 });
             })
-            .catch(err => {
-                console.error(err);
-                alert("게시글 목록을 불러오는데 실패했습니다.");
-            });
+            .catch(err => console.error(err));
         }
     </script>
     </th:block>

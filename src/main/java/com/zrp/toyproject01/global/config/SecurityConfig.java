@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.zrp.toyproject01.global.config.security.JwtAuthenticationEntryPoint;
 import com.zrp.toyproject01.global.config.security.JwtFilter;
 import com.zrp.toyproject01.global.config.security.TokenProvider;
 
@@ -25,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
     
     private final TokenProvider tokenProvider;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     // 비밀번호 암호화 기기 등록 (BCrypt)
     @Bean
@@ -36,34 +38,35 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // CSRF 보안 비활성화 (서버에 인증 정보를 저장하지 않으므로 불피요함)
             .csrf(AbstractHttpConfigurer::disable)
+            // .cors(Customizer.withDefaults())
             
-            // 세션 설정: Stateless (세션을 만들지도, 쓰지도 않음)
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            // [핵심 추가] 예외 처리 설정: 인증 실패 시 401을 뱉도록 설정
+            .exceptionHandling(handling -> handling
+                .authenticationEntryPoint(jwtAuthenticationEntryPoint)
             )
 
-            // URL 별 권한 설정
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            
             .authorizeHttpRequests(auth -> auth
-                // 회워 가입, 로그인은 인증 없이 접근 허용
-                .requestMatchers("/api/account/signup", "/api/account/login")
-                .permitAll()
-                .requestMatchers("/", "/login", "/signup", "/favicon.ico", "/error")
-                .permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/posts/**")
-                .permitAll()
-                .requestMatchers("/post/**")
-                .permitAll()
-                // 그 외 모든 요청은 인증 필요
+                // 1. 로그인, 회원가입, 재발급 등은 누구나 접근 가능
+                .requestMatchers("/api/account/**", "/login", "/signup", "/", "/favicon.ico", "/error").permitAll()
+                .requestMatchers("/post/**").permitAll() // 화면 페이지 조회
+                
+                // 2. [명시적 허용] 게시글 목록/상세 조회(GET)는 누구나
+                .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
+
+                // 3. [명시적 차단] 글쓰기(POST), 수정(PUT), 삭제(DELETE)는 반드시 인증 필요
+                // (anyRequest에 걸리긴 하지만, 확실하게 적어주는 게 좋습니다)
+                .requestMatchers(HttpMethod.POST, "/api/posts/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/posts/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/posts/**").authenticated()
+
+                // 그 외 나머지는 인증 필요
                 .anyRequest().authenticated()
             )
-
-            // 이제 만든 JwtFilter를 아이디/비번 인증 필터보다 앞에 끼워 넣음
-            .addFilterBefore(
-                new JwtFilter(tokenProvider),
-                UsernamePasswordAuthenticationFilter.class
-            );
+            
+            .addFilterBefore(new JwtFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

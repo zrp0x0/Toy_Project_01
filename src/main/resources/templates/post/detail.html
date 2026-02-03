@@ -35,7 +35,6 @@
 
     <th:block th:fragment="scripts">
     <script>
-        // URL에서 글 ID 추출 (예: /post/1 -> 1)
         const pathSegments = window.location.pathname.split("/");
         const postId = pathSegments[pathSegments.length - 1];
 
@@ -44,26 +43,22 @@
         });
 
         function fetchPostDetail() {
-            fetch(`/api/posts/${postId}`) // 상세 조회 API 호출
+            fetch(`/api/posts/${postId}`)
             .then(response => {
-                if (!response.ok) throw new Error("게시글을 찾을 수 없습니다.");
+                if (!response.ok) throw new Error("존재하지 않는 글입니다.");
                 return response.json();
             })
             .then(result => {
                 const post = result.data;
                 
-                // 1. 화면에 데이터 채우기
                 document.getElementById('post-title').innerText = post.title;
                 document.getElementById('post-author').innerText = "작성자: " + post.author;
                 document.getElementById('post-content').innerText = post.content;
-                
                 if(post.updatedAt) {
-                    // 날짜 포맷 예쁘게 (YYYY. MM. DD. 오전/오후 HH:MM)
                     document.getElementById('post-date').innerText = "날짜: " + new Date(post.updatedAt).toLocaleString();
                 }
 
-                // 2. 권한 체크 (내 글이면 수정/삭제 버튼 보이기)
-                // 로컬 스토리지의 닉네임과 게시글 작성자 닉네임 비교
+                // 본인 글 확인 (수정/삭제 버튼 표시)
                 const myNickname = localStorage.getItem('nickname');
                 if (myNickname && myNickname === post.author) {
                     document.getElementById('owner-btns').style.display = 'block';
@@ -75,13 +70,12 @@
             });
         }
 
-        // 게시글 삭제 함수
+        // [변경] 삭제 시 fetchWithAuth 사용
         function deletePost() {
             if (!confirm("정말 이 글을 삭제하시겠습니까?")) return;
 
-            fetch(`/api/posts/${postId}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders() // 토큰 포함
+            fetchWithAuth(`/api/posts/${postId}`, {
+                method: 'DELETE'
             })
             .then(response => {
                 if (response.ok) {
@@ -91,10 +85,9 @@
                     response.json().then(res => alert("삭제 실패: " + res.error.message));
                 }
             })
-            .catch(err => alert("서버 통신 오류"));
+            .catch(err => alert("오류 발생"));
         }
 
-        // 수정 페이지 이동 함수
         function moveEditPage() {
             window.location.href = `/post/edit/${postId}`;
         }

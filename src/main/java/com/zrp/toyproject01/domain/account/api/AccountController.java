@@ -9,6 +9,7 @@ import com.zrp.toyproject01.domain.account.application.AccountService;
 import com.zrp.toyproject01.domain.account.dto.LoginRequest;
 import com.zrp.toyproject01.domain.account.dto.LoginResponse;
 import com.zrp.toyproject01.domain.account.dto.SignupRequest;
+import com.zrp.toyproject01.domain.account.dto.TokenDto;
 import com.zrp.toyproject01.global.common.ApiResponse;
 
 import jakarta.validation.Valid;
@@ -37,6 +38,16 @@ public class AccountController {
     ) {
         LoginResponse response = accountService.login(request);
         return ApiResponse.ok(response);
+    }
+
+    // 토큰 재발급
+    @PostMapping("/reissue")
+    public ApiResponse<TokenDto> reissue(
+        @RequestBody TokenDto tokenDto
+    ) {
+        // 클라이언트가 보낸 Refresh Token으로 재발급 요청
+        TokenDto newToken = accountService.reissue(tokenDto.refreshToken());
+        return ApiResponse.ok(newToken);
     }
 
 }

@@ -13,6 +13,8 @@ public enum ErrorCode {
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "A002", "이미 가입된 이메일입니다."),
     INFO_NOT_TRUE(HttpStatus.BAD_REQUEST, "A003", "정보가 일치하지 않습니다."),
     LOGIN_REQUIRED(HttpStatus.UNAUTHORIZED, "A004", "로그인이 필요한 서비스입니다."),
+    REFRESH_TOKEN_NOT_FOUND(HttpStatus.NOT_FOUND, "A005", "토큰을 찾을 수 없습니다."),
+    INVALID_TOKEN(HttpStatus.BAD_REQUEST, "A006", "유효하지 않은 토큰입니다."),
 
     // Post
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "해당 게시글을 찾을 수 없습니다."),

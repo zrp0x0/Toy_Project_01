@@ -52,6 +52,7 @@ public class PostController {
         @RequestBody @Valid PostUpdateRequest request
     ) {
         String email = SecurityUtil.getCurrentUserEmail();
+        System.out.println("fucking: " + email);
 
         Long postId = postService.update(id, request, email);
         return ApiResponse.ok(postId);
