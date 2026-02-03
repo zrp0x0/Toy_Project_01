@@ -9,7 +9,7 @@ public record PostResponse(
     String title,
     String content,
     String author, // 작성자 닉네임 또는 이메일
-    LocalDateTime updateedAt // 마지막 수정일
+    LocalDateTime updatedAt // 마지막 수정일
 ) {
     // Entity -> DTO 
     public static PostResponse from(Post post) {
