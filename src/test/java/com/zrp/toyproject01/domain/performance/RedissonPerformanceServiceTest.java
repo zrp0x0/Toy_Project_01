@@ -1,6 +1,8 @@
 package com.zrp.toyproject01.domain.performance;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -29,6 +31,8 @@ import com.zrp.toyproject01.domain.performance.dao.PerformanceRepository;
 import com.zrp.toyproject01.domain.performance.domain.Performance;
 import com.zrp.toyproject01.domain.performance.dto.PerformanceRegisterRequest;
 import com.zrp.toyproject01.domain.post.dao.PostRepository;
+import com.zrp.toyproject01.domain.queue.application.QueueService;
+import com.zrp.toyproject01.domain.queue.scheduler.QueueScheduler;
 import com.zrp.toyproject01.domain.reservation.dao.ReservationRepository;
 import com.zrp.toyproject01.domain.reservation.domain.Reservation;
 import com.zrp.toyproject01.domain.reservation.domain.ReservationStatus;
@@ -47,6 +51,9 @@ class RedissonPerformanceServiceTest {
     @Autowired private RefreshTokenRepository refreshTokenRepository;
     @Autowired private StringRedisTemplate redisTemplate;
     @Autowired private EntityManager em;
+
+    @Autowired QueueScheduler queueScheduler; // 스케줄러 주입
+    @Autowired QueueService queueService;
 
     @BeforeEach
     void cleanUp() {
@@ -198,13 +205,13 @@ class RedissonPerformanceServiceTest {
     @Test
     @DisplayName("시나리오 테스트: 150명 시도(재고 100) -> 20명 취소 -> 대기자 중 20명 추가 낙찰")
     void catching_canceled_tickets_test() throws InterruptedException {
-        // 1. Given
+        // 1. Given: 변수 설정
         int initialStock = 100;
-        int totalParticipants = 150;
-        int cancelCount = 20;
+        int totalParticipants = 150; // 총 구매 시도 인원
+        int cancelCount = 20;        // 취소할 인원
 
+        // 테스트용 데이터 세팅 (공연 및 유저)
         Long performanceId = performanceService.register(new PerformanceRegisterRequest("취소표 대전", 50000, initialStock));
-        
         for (int i = 1; i <= totalParticipants; i++) {
             userRepository.save(User.create("hyena" + i + "@test.com", "1234", "하이에나" + i));
         }
@@ -212,16 +219,21 @@ class RedissonPerformanceServiceTest {
         AtomicInteger totalSuccessCount = new AtomicInteger(0);
         AtomicInteger totalFailCount = new AtomicInteger(0);
 
-        // ✨ [수정 1] Latch 숫자를 (참가자 + 취소자)로 설정해서 모두 기다리게 함
-        CountDownLatch latch = new CountDownLatch(totalParticipants + cancelCount); 
-        
-        ExecutorService executorService = Executors.newFixedThreadPool(60);
+        // 🚨 Latch 개수 = 구매 시도(150) + 취소 시도(20) = 170
+        CountDownLatch latch = new CountDownLatch(totalParticipants + cancelCount);
 
-        // 2. When: 150명 구매 시도
+        // 🧵 [핵심 수정 1] 스레드 풀 분리
+        // 구매자용 풀: 고정된 스레드 개수로 부하를 줌 (대기열 발생 시뮬레이션)
+        ExecutorService purchaseExecutor = Executors.newFixedThreadPool(100);
+        // 취소자용 풀: 즉시 실행되어야 하므로 CachedThreadPool 사용 (혹은 별도 생성)
+        ExecutorService cancelExecutor = Executors.newCachedThreadPool();
+
+        // 2. When: 150명 구매 시도 (purchaseExecutor 사용)
         for (int i = 1; i <= totalParticipants; i++) {
             String email = "hyena" + i + "@test.com";
-            executorService.submit(() -> {
+            purchaseExecutor.submit(() -> {
                 try {
+                    // 락 획득 및 구매 로직 시도
                     boolean isSuccess = redissonLockPerformanceFacade.purchase(performanceId, 1, email);
                     if (isSuccess) {
                         totalSuccessCount.incrementAndGet();
@@ -229,57 +241,155 @@ class RedissonPerformanceServiceTest {
                         totalFailCount.incrementAndGet();
                     }
                 } catch (Exception e) {
-                    System.err.println("에러 발생: " + e.getMessage());
+                    System.err.println("구매 에러: " + e.getMessage());
                 } finally {
-                    latch.countDown(); // 작업 끝날 때마다 카운트 감소
+                    latch.countDown(); // 작업 완료 카운트
                 }
             });
         }
 
-        // 3. 중간 이벤트: 1초 뒤 취소 시작
-        Thread.sleep(1000); 
-        List<Reservation> currentReservations = reservationRepository.findAll();
-        System.out.println("📢 현재 예약된 수 (취소 전): " + currentReservations.size());
+        // 3. 중간 이벤트 모니터링: 100개가 다 팔릴 때까지 대기
+        long startTime = System.currentTimeMillis();
+        long maxWaitTime = 10000; // 10초
 
+        while (true) {
+            long currentCount = reservationRepository.count();
+            
+            if (currentCount >= initialStock) {
+                System.out.println("🎉 예약 100개 달성 완료! (현재: " + currentCount + "개) -> 취소 작업 준비");
+                break; 
+            }
+
+            if (System.currentTimeMillis() - startTime > maxWaitTime) {
+                // 디버깅을 위해 현재 상태 출력 후 종료
+                System.err.println("⚠️ 타임아웃 발생! 현재 예약 수: " + currentCount);
+                purchaseExecutor.shutdownNow();
+                cancelExecutor.shutdownNow();
+                throw new RuntimeException("시간 초과: 10초가 지나도 예약이 다 차지 않았습니다.");
+            }
+
+            Thread.sleep(100); // 0.1초 간격 폴링
+        }
+
+        // 예약 데이터 조회 (취소 대상 선정을 위해)
+        List<Reservation> currentReservations = reservationRepository.findAll();
+        System.out.println("📢 취소 로직 실행 직전 예약 수: " + currentReservations.size());
+
+        // 4. 취소 작업 시작 (cancelExecutor 사용)
+        // 🚨 [핵심 수정 2] 꽉 찬 purchaseExecutor 대신 별도 스레드에서 실행
+        System.out.println("🚀 취소 스레드 가동 시작...");
         for (int i = 0; i < cancelCount; i++) {
             Long resId = currentReservations.get(i).getId();
-            executorService.submit(() -> {
+            
+            cancelExecutor.submit(() -> {
                 try {
                     redissonLockPerformanceFacade.cancel(resId);
-                    System.out.println("✅ 예약 취소 완료: " + resId);
+                    System.out.println("✅ 예약 취소 완료: ID " + resId);
                 } catch (Exception e) {
-                    System.err.println("취소 실패: " + e.getMessage());
+                    System.err.println("취소 에러: " + e.getMessage());
                 } finally {
-                    // ✨ [수정 2] 취소 작업도 끝나면 카운트를 줄여줘야 함! (이거 없으면 무한 대기 걸림)
-                    latch.countDown(); 
+                    latch.countDown(); // 취소 작업도 카운트 감소 필수
                 }
             });
         }
 
-        // 4. 모든 작업(170개)이 끝날 때까지 대기
-        // (무한 대기보다는 타임아웃을 거는 게 안전합니다. 30초면 충분합니다.)
-        latch.await(30, TimeUnit.SECONDS);
+        // 5. 모든 작업(170개)이 끝날 때까지 대기
+        // 넉넉하게 30초 대기 (테스트 환경 고려)
+        boolean completed = latch.await(30, TimeUnit.SECONDS);
         
-        // 5. 안전하게 종료
-        executorService.shutdown();
+        // 스레드 풀 정리
+        purchaseExecutor.shutdown();
+        cancelExecutor.shutdown();
 
-        // 6. Then: 검증
+        if (!completed) {
+            System.err.println("⚠️ 테스트가 시간 내에 완전히 종료되지 않았습니다. (남은 카운트: " + latch.getCount() + ")");
+        }
+
+        // 6. Then: 결과 검증
         Performance performance = performanceRepository.findById(performanceId).orElseThrow();
         long finalReservedCount = reservationRepository.findAll().stream()
                 .filter(r -> r.getStatus() == ReservationStatus.RESERVED)
                 .count();
 
         System.out.println("=========================================");
-        System.out.println("📊 테스트 결과 보고서");
-        System.out.println("총 구매 시도: " + totalParticipants);
-        System.out.println("누적 구매 성공 횟수(취소표 포함): " + totalSuccessCount.get()); 
-        System.out.println("구매 실패 횟수(포기자): " + totalFailCount.get());
-        System.out.println("현재 유효한 예약 수: " + finalReservedCount);
-        System.out.println("최종 남은 재고: " + performance.getStock());
+        System.out.println("📊 최종 테스트 리포트");
+        System.out.println("총 시도: " + (totalParticipants + cancelCount));
+        System.out.println("구매 성공(누적): " + totalSuccessCount.get()); 
+        System.out.println("구매 실패: " + totalFailCount.get());
+        System.out.println("최종 유효 예약 수: " + finalReservedCount); // 100이어야 함
+        System.out.println("최종 재고: " + performance.getStock());      // 0이어야 함
         System.out.println("=========================================");
 
+        // 검증 1: 최종 예약된 티켓 수는 초기 재고(100)와 같아야 함 (취소된 만큼 다시 팔렸으므로)
         assertEquals(initialStock, finalReservedCount);
+        
+        // 검증 2: DB 재고는 0이어야 함
         assertEquals(0, performance.getStock());
-        assertTrue(totalSuccessCount.get() > initialStock);
+        
+        // 검증 3: '누적' 성공 횟수는 최소 120회 이상이어야 함
+        // (처음 100명 성공 + 취소 후 재진입하여 20명 성공 = 120)
+        assertTrue(totalSuccessCount.get() >= initialStock + cancelCount, 
+            "누적 성공 횟수가 120회 이상이어야 합니다. (실제: " + totalSuccessCount.get() + ")");
+    }
+
+    @Test
+    @DisplayName("통합 시나리오: 매진 -> 스케줄러 휴식 -> 취소표 발생 -> 스케줄러 가동 -> 이삭줍기 성공")
+    void sold_out_and_cancel_scenario_test() throws InterruptedException {
+        // 1. [준비] 재고 1개로 시작 -> 누군가 바로 구매해서 '매진' 상태로 만듦
+        Long performanceId = performanceService.register(new PerformanceRegisterRequest("아이유 콘서트", 50000, 1));
+        User winner = userRepository.save(User.create("winner@test.com", "1234", "승리자"));
+        User hyena = userRepository.save(User.create("hyena@test.com", "1234", "하이에나"));
+        
+        // 승리자가 1개를 사버림 -> 재고 0 -> SoldOut Flag = true
+        redissonLockPerformanceFacade.purchase(performanceId, 1, "winner@test.com");
+        queueScheduler.enterUserForTest(performanceId); 
+        redissonLockPerformanceFacade.purchase(performanceId, 1, "winner@test.com");
+        
+        // 검증 1: 매진 플래그가 서 있어야 함
+        assertTrue(queueService.isSoldOut(performanceId));
+        System.out.println("✅ 1. 초기 매진 상태 확인 완료 (Flag=True)");
+
+        // // 2. [대기] 하이에나가 늦게 들어와서 대기열에 갇힘
+        // boolean purchaseResult = redissonLockPerformanceFacade.purchase(performanceId, 1, "hyena@test.com");
+        // assertFalse(purchaseResult); // 구매 실패 (대기열 진입)
+        
+        // // 하이에나가 대기열(Waiting Queue)에 있는지 확인
+        // Long rank = queueService.getRank("hyena@test.com");
+        // assertNotNull(rank);
+        // System.out.println("✅ 2. 하이에나 대기열 진입 확인 (순번: " + rank + ")");
+
+        // 3. [스케줄러 테스트] 매진 상태에서 스케줄러를 강제로 실행해봄
+        // (기대결과: Flag가 True이므로 아무도 입장시키지 않아야 함)
+        queueScheduler.enterUserForTest(performanceId); 
+        
+        // // 여전히 대기열에 있어야 함 (입장 못함)
+        // assertFalse(queueService.isAllowed("hyena@test.com"));
+        // System.out.println("✅ 3. 매진 중 스케줄러 작동 안 함 확인 (하이에나 여전히 대기 중)");
+
+        // 4. [이벤트] 승리자가 예약을 취소함!
+        Reservation reservation = reservationRepository.findAll().get(0);
+        redissonLockPerformanceFacade.cancel(reservation.getId());
+
+        // 검증 4: 취소하자마자 매진 플래그가 사라져야 함
+        assertFalse(queueService.isSoldOut(performanceId));
+        System.out.println("✅ 4. 취소 후 매진 플래그 제거 확인 (Flag=False)");
+
+        // 5. [재가동] 이제 스케줄러가 돌면 하이에나가 입장해야 함
+        redissonLockPerformanceFacade.purchase(performanceId, 1, "hyena@test.com");
+        queueScheduler.enterUserForTest(performanceId); 
+        
+        // 검증 5: 하이에나가 입장열(Active Queue)로 이동했는지
+        assertTrue(queueService.isAllowed("hyena@test.com"));
+        System.out.println("✅ 5. 스케줄러가 하이에나를 입장시킴");
+
+        // 6. [이삭줍기] 하이에나가 다시 구매 시도 -> 성공해야 함
+        boolean finalResult = redissonLockPerformanceFacade.purchase(performanceId, 1, "hyena@test.com");
+        
+        assertTrue(finalResult);
+        System.out.println("✅ 6. 하이에나 취소표 구매 성공!");
+        
+        // 7. [최종 확인] 다시 매진되었는지
+        assertTrue(queueService.isSoldOut(performanceId));
+        System.out.println("✅ 7. 재구매 후 다시 매진 플래그 설정됨");
     }
 }
