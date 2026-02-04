@@ -20,12 +20,15 @@ public enum ErrorCode {
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "P001", "해당 게시글을 찾을 수 없습니다."),
     NO_PERMISSION(HttpStatus.FORBIDDEN, "P002", "수정/삭제 권한이 없습니다."),
 
-    // Seat
+    // performance
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "좌석을 찾을 수 없습니다."),
     SEAT_ALREADY_RESERVED(HttpStatus.CONFLICT, "S002", "이미 예약된 좌석입니다."),
-    
+    SEAT_SOLD_OUT(HttpStatus.CONFLICT, "S003", "좌석이 모두 매진되었습니다."),
+
+
     // Coupon
-    COUPON_SOLD_OUT(HttpStatus.CONFLICT, "P001", "쿠폰이 모두 소진되었습니다.");
+    COUPON_SOLD_OUT(HttpStatus.CONFLICT, "P001", "쿠폰이 모두 소진되었습니다."),
+    PERFORMANCE_NOT_FOUND(HttpStatus.NOT_FOUND, "P003", "해당 공연을 찾을 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;

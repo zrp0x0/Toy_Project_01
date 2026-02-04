@@ -62,6 +62,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/posts/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/posts/**").authenticated()
 
+                // performance 열어버리기 (근데 Postman 써서 해봐야겠다)
+                // .requestMatchers("/api/performances/**").permitAll()
+
                 // 그 외 나머지는 인증 필요
                 .anyRequest().authenticated()
             )

@@ -37,7 +37,7 @@ public class TokenProvider {
     public TokenProvider(@Value("${jwt.secret}") String secretKey) {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey); // 비밀키를 디코딩
         this.key = Keys.hmacShaKeyFor(keyBytes);            // 자바의 Key 객체로 교환
-        this.tokenValidityTime = 1000L * 60 * 1;      // 토크 유효 시간 1분
+        this.tokenValidityTime = 1000L * 60 * 60 * 24;      // 토크 유효 시간 1분
     }
 
     // 2. 토큰 생성 (로그인 성공 시 호출)
