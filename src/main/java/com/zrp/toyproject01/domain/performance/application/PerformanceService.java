@@ -16,6 +16,7 @@ import com.zrp.toyproject01.domain.performance.dto.PerformanceRegisterRequest;
 import com.zrp.toyproject01.domain.performance.dto.PerformanceResponse;
 import com.zrp.toyproject01.domain.reservation.dao.ReservationRepository;
 import com.zrp.toyproject01.domain.reservation.domain.Reservation;
+import com.zrp.toyproject01.domain.reservation.domain.ReservationStatus;
 import com.zrp.toyproject01.global.error.BusinessException;
 import com.zrp.toyproject01.global.error.ErrorCode;
 
@@ -32,7 +33,7 @@ public class PerformanceService {
 
     // 공연 등록 (관리자용)
     @Transactional
-    @CacheEvict(value = "performance", key = "'all'")
+    @CacheEvict(value = "performances", key = "'all'")
     public Long register(PerformanceRegisterRequest request) {
         Performance performance = Performance.create(
             request.name(),
@@ -77,6 +78,31 @@ public class PerformanceService {
         // 4. 예약 생성 및 저장 (영주증 발행)
         Reservation reservation = Reservation.create(user, performance, quantity);
         reservationRepository.save(reservation);
+    }
+
+    // 예약 취소
+    @Transactional
+    @CacheEvict(value = "performances", allEntries = true) // 만약 공연 상세보기를 했을 때, 거기에 적힌 수량도 바뀌어야하니깐 추가해보긴 했어
+    public void cancel(Long reservationId) {
+        // 1. 예약 내역 조회
+        Reservation reservation = reservationRepository.findById(reservationId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        // 2. 이미 취소된 예약인지 체크
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.ALREADY_CANCELLED);
+        }
+
+        // 3. 재고 복구 (해당 공연을 찾아와서 취소 수량만큼 더함)
+        Performance performance = reservation.getPerformance();
+        performance.increaseStock((reservation.getCount()));
+        // 여기서 N + 1?
+
+        // 4. 예약 상태 변경
+        reservation.cancel();
+
+        // 5. 캐시 비우기 (재고 수량이 바뀌었으니 목록 캐시도 날려야 정확함)
+
     }
 
 }

@@ -24,7 +24,11 @@ public enum ErrorCode {
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "S001", "좌석을 찾을 수 없습니다."),
     SEAT_ALREADY_RESERVED(HttpStatus.CONFLICT, "S002", "이미 예약된 좌석입니다."),
     SEAT_SOLD_OUT(HttpStatus.CONFLICT, "S003", "좌석이 모두 매진되었습니다."),
-
+    
+    // reservation
+    RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "R001", "예약을 찾을 수 없습니다."),
+    ALREADY_CANCELLED(HttpStatus.BAD_REQUEST, "R002", "이미 취소된 예약입니다."),
+    PERFORMANCE_SOLD_OUT(HttpStatus.BAD_REQUEST, "R003", "매진입니다."),
 
     // Coupon
     COUPON_SOLD_OUT(HttpStatus.CONFLICT, "P001", "쿠폰이 모두 소진되었습니다."),

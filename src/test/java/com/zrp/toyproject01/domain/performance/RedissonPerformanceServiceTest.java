@@ -1,13 +1,17 @@
 package com.zrp.toyproject01.domain.performance;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import org.junit.jupiter.api.AfterEach;
+// import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +30,9 @@ import com.zrp.toyproject01.domain.performance.domain.Performance;
 import com.zrp.toyproject01.domain.performance.dto.PerformanceRegisterRequest;
 import com.zrp.toyproject01.domain.post.dao.PostRepository;
 import com.zrp.toyproject01.domain.reservation.dao.ReservationRepository;
+import com.zrp.toyproject01.domain.reservation.domain.Reservation;
+import com.zrp.toyproject01.domain.reservation.domain.ReservationStatus;
+
 import jakarta.persistence.EntityManager;
 
 @SpringBootTest
@@ -186,5 +193,93 @@ class RedissonPerformanceServiceTest {
         performanceRepository.findAll();
         long end3 = System.currentTimeMillis();
         System.out.println("👉 3차 조회 (Hot DB): " + (end3 - start3) + "ms");
+    }
+
+    @Test
+    @DisplayName("시나리오 테스트: 150명 시도(재고 100) -> 20명 취소 -> 대기자 중 20명 추가 낙찰")
+    void catching_canceled_tickets_test() throws InterruptedException {
+        // 1. Given
+        int initialStock = 100;
+        int totalParticipants = 150;
+        int cancelCount = 20;
+
+        Long performanceId = performanceService.register(new PerformanceRegisterRequest("취소표 대전", 50000, initialStock));
+        
+        for (int i = 1; i <= totalParticipants; i++) {
+            userRepository.save(User.create("hyena" + i + "@test.com", "1234", "하이에나" + i));
+        }
+
+        AtomicInteger totalSuccessCount = new AtomicInteger(0);
+        AtomicInteger totalFailCount = new AtomicInteger(0);
+
+        // ✨ [수정 1] Latch 숫자를 (참가자 + 취소자)로 설정해서 모두 기다리게 함
+        CountDownLatch latch = new CountDownLatch(totalParticipants + cancelCount); 
+        
+        ExecutorService executorService = Executors.newFixedThreadPool(60);
+
+        // 2. When: 150명 구매 시도
+        for (int i = 1; i <= totalParticipants; i++) {
+            String email = "hyena" + i + "@test.com";
+            executorService.submit(() -> {
+                try {
+                    boolean isSuccess = redissonLockPerformanceFacade.purchase(performanceId, 1, email);
+                    if (isSuccess) {
+                        totalSuccessCount.incrementAndGet();
+                    } else {
+                        totalFailCount.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    System.err.println("에러 발생: " + e.getMessage());
+                } finally {
+                    latch.countDown(); // 작업 끝날 때마다 카운트 감소
+                }
+            });
+        }
+
+        // 3. 중간 이벤트: 1초 뒤 취소 시작
+        Thread.sleep(1000); 
+        List<Reservation> currentReservations = reservationRepository.findAll();
+        System.out.println("📢 현재 예약된 수 (취소 전): " + currentReservations.size());
+
+        for (int i = 0; i < cancelCount; i++) {
+            Long resId = currentReservations.get(i).getId();
+            executorService.submit(() -> {
+                try {
+                    redissonLockPerformanceFacade.cancel(resId);
+                    System.out.println("✅ 예약 취소 완료: " + resId);
+                } catch (Exception e) {
+                    System.err.println("취소 실패: " + e.getMessage());
+                } finally {
+                    // ✨ [수정 2] 취소 작업도 끝나면 카운트를 줄여줘야 함! (이거 없으면 무한 대기 걸림)
+                    latch.countDown(); 
+                }
+            });
+        }
+
+        // 4. 모든 작업(170개)이 끝날 때까지 대기
+        // (무한 대기보다는 타임아웃을 거는 게 안전합니다. 30초면 충분합니다.)
+        latch.await(30, TimeUnit.SECONDS);
+        
+        // 5. 안전하게 종료
+        executorService.shutdown();
+
+        // 6. Then: 검증
+        Performance performance = performanceRepository.findById(performanceId).orElseThrow();
+        long finalReservedCount = reservationRepository.findAll().stream()
+                .filter(r -> r.getStatus() == ReservationStatus.RESERVED)
+                .count();
+
+        System.out.println("=========================================");
+        System.out.println("📊 테스트 결과 보고서");
+        System.out.println("총 구매 시도: " + totalParticipants);
+        System.out.println("누적 구매 성공 횟수(취소표 포함): " + totalSuccessCount.get()); 
+        System.out.println("구매 실패 횟수(포기자): " + totalFailCount.get());
+        System.out.println("현재 유효한 예약 수: " + finalReservedCount);
+        System.out.println("최종 남은 재고: " + performance.getStock());
+        System.out.println("=========================================");
+
+        assertEquals(initialStock, finalReservedCount);
+        assertEquals(0, performance.getStock());
+        assertTrue(totalSuccessCount.get() > initialStock);
     }
 }

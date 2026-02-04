@@ -61,7 +61,7 @@ public class Performance extends BaseTimeEntity {
         // 1. 검사 (Check)
         if (restStock < 0) {
             // 재고 부족 시 예외 발생
-            throw new BusinessException(ErrorCode.SEAT_SOLD_OUT);
+            throw new BusinessException(ErrorCode.PERFORMANCE_SOLD_OUT);
         }
 
         // 2. 반영 (Act)
