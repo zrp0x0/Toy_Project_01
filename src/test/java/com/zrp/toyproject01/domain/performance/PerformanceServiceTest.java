@@ -61,7 +61,7 @@ class PerformanceServiceTest {
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
-                    performanceService.purchase(performanceId, 1);
+                    performanceService.purchase(performanceId, 1, " ");
                 } finally {
                     latch.countDown(); // 작업 하나 끝나면 카운트 감소
                 }
@@ -103,7 +103,7 @@ class PerformanceServiceTest {
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
-                    performanceService.purchase(performanceId, 1);
+                    performanceService.purchase(performanceId, 1, " ");
                 } finally {
                     latch.countDown();
                 }
@@ -143,7 +143,7 @@ class PerformanceServiceTest {
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
-                    performanceFacade.purchase(performanceId, 1);
+                    performanceFacade.purchase(performanceId, 1, " ");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } finally {
@@ -186,7 +186,7 @@ class PerformanceServiceTest {
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
-                    redissonLockPerformanceFacade.purchase(performanceId, 1);
+                    redissonLockPerformanceFacade.purchase(performanceId, 1, " ");
                 } finally {
                     latch.countDown();
                 }

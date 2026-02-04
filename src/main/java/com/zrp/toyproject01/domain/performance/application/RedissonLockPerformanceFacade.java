@@ -17,7 +17,7 @@ public class RedissonLockPerformanceFacade {
     private final RedissonClient redissonClient;
     private final PerformanceService performanceService;
 
-    public void purchase(Long id, int quantity) {
+    public void purchase(Long id, int quantity, String email) {
         // 락의 이름 설정(Unique 해야함)
         // 예: performance:1 (1번 공연에 대한 자물쇠)
         RLock lock = redissonClient.getLock("performance:" + id);
@@ -34,7 +34,7 @@ public class RedissonLockPerformanceFacade {
             }
 
             // 3. 락 획득 성공 시 비즈니스 로직 실행
-            performanceService.purchase(id, quantity);
+            performanceService.purchase(id, quantity, email);
         } catch(InterruptedException e) {
             throw new RuntimeException(e);
         } finally {

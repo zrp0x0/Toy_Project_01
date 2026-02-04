@@ -10,11 +10,11 @@ public class OptimisticLockPerformanceFacade {
     
     private final PerformanceService performanceService;
 
-    public void purchase(Long id, int quantity) throws InterruptedException {
+    public void purchase(Long id, int quantity, String email) throws InterruptedException {
         while (true) { // 무한 반복 (성공할 때까지)
             try {
                 // 1. 서비스 로직 호출 (여기서 충돌나면 에러 발생)
-                performanceService.purchase(id, quantity);
+                performanceService.purchase(id, quantity, email);
 
                 // 2. 성공하면 반복문 탈출
                 break;

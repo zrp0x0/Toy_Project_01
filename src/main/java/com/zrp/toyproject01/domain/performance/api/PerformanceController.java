@@ -10,10 +10,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zrp.toyproject01.domain.performance.application.PerformanceService;
+import com.zrp.toyproject01.domain.performance.application.RedissonLockPerformanceFacade;
 import com.zrp.toyproject01.domain.performance.dto.PerformancePurchaseRequest;
 import com.zrp.toyproject01.domain.performance.dto.PerformanceRegisterRequest;
 import com.zrp.toyproject01.domain.performance.dto.PerformanceResponse;
 import com.zrp.toyproject01.global.common.ApiResponse;
+import com.zrp.toyproject01.global.util.SecurityUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PerformanceController {
     
+    private final RedissonLockPerformanceFacade performanceFacade;
     private final PerformanceService performanceService;
 
 
@@ -46,9 +49,15 @@ public class PerformanceController {
         @PathVariable Long id,
         @RequestBody @Valid PerformancePurchaseRequest request
     ) {
+        // 로그인한 사용자 이메일 추출
+        String email = SecurityUtil.getCurrentUserEmail();
+
         // 원래는 SecurityUtil.getCurrentUserEmail()로 유저 정보도 넘겨야하지만
         // 지금은 동시성 테스트가 목적이므로 재고 감소에만 집중
-        performanceService.purchase(id, request.quantity());
+        // performanceService.purchase(id, request.quantity());
+
+        performanceFacade.purchase(id, request.quantity(), email);
+
         return ApiResponse.ok();
     }
 
