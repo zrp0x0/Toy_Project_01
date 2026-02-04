@@ -2,6 +2,9 @@ package com.zrp.toyproject01.domain.performance.application;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +32,7 @@ public class PerformanceService {
 
     // 공연 등록 (관리자용)
     @Transactional
+    @CacheEvict(value = "performance", key = "'all'")
     public Long register(PerformanceRegisterRequest request) {
         Performance performance = Performance.create(
             request.name(),
@@ -39,7 +43,12 @@ public class PerformanceService {
     }
 
     // 공연 목록 조회
+    @Cacheable(value = "performances", key = "'all'", cacheManager = "cacheManager")
     public List<PerformanceResponse> findAll() {
+        // 이 로그가 찍히면 -> DB까지 갔다는 뜻
+        // 이 로그가 안 찍히면 -> Redis에서 가져왔다는 뜻 (캐시 Hit)
+        System.out.println("## ## ## DB 조회!! ## ## ##");
+
         return performanceRepository.findAll().stream() 
             .map(PerformanceResponse::from)
             .collect(Collectors.toList());
